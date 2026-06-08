@@ -128,4 +128,73 @@ def run_agent(user_message: str, history: list) -> str:
 
     Before writing code, complete specs/agent-loop-spec.md.
     """
-    return "🌱 Agent not yet implemented. Complete Milestone 2 to activate the Plant Advisor."
+    # Build the messages list: system prompt -> replayed history -> new user message.
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # The UI uses gr.ChatInterface(type="messages"), so Gradio hands us history as
+    # a list of {"role", "content"} dicts. (Older type="tuples" gives [user,
+    # assistant] pairs.) Handle both so the agent works regardless of UI config.
+    for turn in history:
+        if isinstance(turn, dict):
+            if turn.get("content"):
+                messages.append({"role": turn["role"], "content": turn["content"]})
+        else:
+            user_msg, assistant_msg = turn
+            messages.append({"role": "user", "content": user_msg})
+            if assistant_msg:
+                messages.append({"role": "assistant", "content": assistant_msg})
+
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        # Bounded loop — at most MAX_TOOL_ROUNDS iterations so a model that keeps
+        # requesting tools can never loop forever.
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = _client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                tools=TOOL_DEFINITIONS,
+                tool_choice="auto",
+            )
+            assistant_message = response.choices[0].message
+
+            # Exit condition (a): no tool calls means the LLM has a final answer.
+            if not assistant_message.tool_calls:
+                return assistant_message.content or (
+                    "Sorry, I couldn't generate a response. Please try rephrasing your question."
+                )
+
+            # Tool calls present — append the assistant message BEFORE its results.
+            messages.append(assistant_message)
+
+            for tool_call in assistant_message.tool_calls:
+                tool_name = tool_call.function.name
+                # Arguments may be "", "null", or missing for no-arg tool calls.
+                # Coerce to a dict so dispatch_tool can safely .get() from it.
+                tool_args = json.loads(tool_call.function.arguments or "{}") or {}
+                tool_result = dispatch_tool(tool_name, tool_args)
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                })
+
+        # Exit condition (b): MAX_TOOL_ROUNDS exhausted while still calling tools.
+        # Make one final call without tools to force a text answer.
+        final = _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+        )
+        return final.choices[0].message.content or (
+            "I gathered some information but ran out of steps before finishing. "
+            "Could you narrow down your question?"
+        )
+
+    except Exception as e:
+        # Never crash the Gradio app — return a user-readable fallback.
+        print(f"  ✗ Agent error: {e}")
+        return (
+            "Sorry, something went wrong while answering your question. "
+            "Please try again in a moment."
+        )

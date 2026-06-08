@@ -52,10 +52,41 @@ def lookup_plant(plant_name: str) -> dict:
 
     Before writing code, complete the lookup_plant section of specs/tool-functions-spec.md.
     """
+    # Normalize the input once: strip whitespace, lowercase. Every comparison
+    # below normalizes its candidate the same way so casing/spacing never misses.
+    normalized = plant_name.strip().lower()
+
+    # Search order (per spec): direct key -> display name -> aliases.
+    # 1. Direct key match — O(1) dict access, fastest.
+    if normalized in _plant_db:
+        return {"found": True, "plant": _plant_db[normalized]}
+
+    # 2 & 3. Walk the plants, checking display name then aliases.
+    for plant in _plant_db.values():
+        if plant["display_name"].lower() == normalized:
+            return {"found": True, "plant": plant}
+        if normalized in [alias.lower() for alias in plant["aliases"]]:
+            return {"found": True, "plant": plant}
+
+    # Not found — return a message written for the agent (LLM) to act on, not a
+    # bare log line. It licenses graceful degradation while requiring honesty.
     return {
         "found": False,
-        "name": plant_name,
-        "message": "Plant lookup not yet implemented. Complete Milestone 1.",
+        "name": normalized,
+        "message": (
+            f"No exact match for '{normalized}' was found in the plant care "
+            f"database, which covers 15 common houseplants. This plant may go by "
+            f"a different name here, or it may not be in the database. You can "
+            f"still offer general care guidance from your own knowledge, but tell "
+            f"the user up front this specific plant isn't in the curated database "
+            f"so your advice is general rather than from verified care data. When "
+            f"you give that general guidance, structure it the same way the "
+            f"database entries are organized — cover watering, light, and "
+            f"humidity/temperature specifically rather than a vague summary, so "
+            f"the answer is still concretely useful. If it might be a naming "
+            f"mismatch, suggest they try the plant's common or scientific name, "
+            f"or pick from the plant list shown in the sidebar."
+        ),
     }
 
 

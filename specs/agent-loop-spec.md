@@ -122,7 +122,7 @@ for tool_call in assistant_message.tool_calls:
 *The loop should stop when: (a) the LLM returns a response with no tool calls, OR (b) the MAX_TOOL_ROUNDS limit is reached. Describe how you will detect each condition and what you will return in each case.*
 
 ```
-[your answer here]
+So the way im handling this is i wrap the whole loop in a for loop that runs at most MAX_TOOL_ROUNDS times using range(MAX_TOOL_ROUNDS), that way it physically cant loop forever even if the model keeps asking for tools over and over. inside each round i make the LLM call and grab assistant_message = response.choices[0].message and then check assistant_message.tool_calls. for the first exit condition, if tool_calls is empty or falsy that means the model is done and just has a normal answer for me, so i break out and return its text content. for the second condition, if i actually burn through all the rounds and the model is STILL asking for tools, the for loop just ends on its own and at that point i dont want to hand back nothing, so i fall back to returning whatever text content i have or a hardcoded message so the function never returns an empty response. when i described my first plan to my AI tool it flagged three failure modes i had to fix: looping forever which the range cap takes care of, returning an empty string becuase the content field can actually come back as None on a tool call turn so i guard it with content or a fallback, and raising an exception since json.loads on the tool arguments or the groq api call itself can blow up, so i wrap the loop in a try/except and return a friendly error string instead of crashing the whole gradio app.
 ```
 
 ---
@@ -132,7 +132,7 @@ for tool_call in assistant_message.tool_calls:
 *Once the loop exits because there are no more tool calls, how do you extract the text content from the response object? What field holds the string you should return?*
 
 ```
-[your answer here]
+The text i actually want to return lives on response.choices[0].message.content. so choices is a list and i grab index 0, then .message gives me the assistant message object, and .content is the actual string the model wrote out for the user. the one gotcha i learned is that content can be None on a turn where the model only asked for tools and didnt write any text, so when im returning it i dont just blindly hand it back, i do something like return assistant_message.content or "<some fallback message>" so i never end up returning a None or an empty string to gradio which would definitly look broken to the user.
 ```
 
 ---

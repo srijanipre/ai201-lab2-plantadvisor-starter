@@ -70,7 +70,7 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+So the way im thinking about it is the aliases are just a list of strings for each plant, so to check if what the user typed matches one of them i'd lowercase every alias in the list and then see if my normalized input is in that list, basically something like normalized in [alias.lower() for alias in plant["aliases"]]. The big thing here is that i normalize both sides the exact same way so the casing or any extra spaces dont end up making it miss when it shouldnt, and i want to use exact equality instead of substring matching becuase otherwise something vague like "ivy" would accidentally grab "devil's ivy" and give back the wrong plant. One thing i realized is that this is technically a linear scan since im looping over every plant and every alias, so if the database ever got really big with thousands of plants i'd probably just build one big dictionary at the start that maps every name and alias straight to its slug, that way each lookup is one fast hit instead of looping through everything every single time.
 ```
 
 ---
@@ -80,7 +80,7 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-[your answer here]
+For the not found message the main thing i kept reminding myself is that the agent is the one actually reading this string, not the user, so it cant just say "plant not found" or the agent is basically gonna dead end the whole conversation. What i want instead is for the message to tell the agent that this plant isnt in our database of 15 houseplants, but also make it clear that its still totally fine to give general care advice from what it already knows, as long as it stays honest with the user that this specific plant isnt in the curated data so the answer is more general. I also want it to nudge the user to try a different name or pick something off the sidebar list incase it was just a naming mismatch. So the actual string i return looks something like: "No exact match for '{normalized}' was found in the plant care database, which covers 15 common houseplants. This plant may go by a different name here, or it may not be in the database. You can still offer general care guidance from your own knowledge, but tell the user this specific plant isn't in the curated database so your advice is general rather than from verified care data. If it might be a naming mismatch, suggest they try the plant's common or scientific name, or pick from the plant list shown in the sidebar."
 ```
 
 ---
@@ -91,17 +91,17 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+Yes it works, when i ran it with "devil's ivy" it came back with found True and gave me the whole Pothos entry, so the alias matching is doing exactly what i wanted since "devil's ivy" isnt the key or the display name, its just sitting in the aliases list under pothos and it still found it.
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+Yes, typing "SNAKE PLANT" in all caps still returned the snake plant entry no problem, which is basically the whole point of lowercasing both sides before i compare anything, the casing doesnt matter at all and it ended up matching on the display name.
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+The edge case i ran into is that the scientific name isnt actually part of the search order, so if someone types something like "Epipremnum aureum" instead of pothos it comes back as not found even though thats literaly the exact same plant. i left it that way since the spec only says to search the key, display name and aliases, but the good thing is the not found message still lets the agent fall back to general advice so the user isnt completely stuck.
 ```
 
 ---
@@ -183,12 +183,10 @@ The full season dict from `_season_data`, plus a `detected_season` boolean. Exam
 
 **Test: does calling with `season=None` return the correct season for the current month?**
 ```
-Current month: [month]
-Expected season: [season]
-Returned season: [season]
+Yes this lines up, i ran it with no argument and since right now its June the month is 6, which maps to summer in the _MONTH_TO_SEASON dict, and thats exactly what came back. so writing it out, current month is June, the expected season is summer, and the returned season was summer with detected_season set to True since it auto detected it insted of me passing one in.
 ```
 
 **Test: does calling with `season="winter"` return winter data regardless of the current month?**
 ```
-[yes / no]
+Yes, when i passed in season="winter" it gave me back the full winter data even though its actually summer right now, and detected_season came back as False which makes sense becuase i specified the season myself instead of letting it auto detect off the month.
 ```
