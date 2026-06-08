@@ -145,19 +145,19 @@ The text i actually want to return lives on response.choices[0].message.content.
 
 ```
 Query: "How should I care for my calathea?"
-Round 1 tool call: [tool name, args]
-Round 2 tool call: [tool name, args] (if any)
-Final response: [brief description]
+Round 1 tool call: lookup_plant({"plant_name": "calathea"})
+Round 2 tool call: None needed — the one lookup gave the model everything it required, so it stopped calling tools and just answered.
+Final response: A grounded care summary that opened with "According to the care data for your calathea..." and pulled straight from the database — keep the soil consistently moist with filtered water, low to medium indirect light away from direct sun, high humidity around 50%+, and 60–80°F.
 ```
 
 **What happens when you ask about a plant that isn't in the database?**
 
 ```
-[describe the behavior you observed]
+When I asked about a plant that isnt in the database, like string of pearls, lookup_plant came back with found False and my not-found message instead of a plant dict, and the agent handled it pretty gracefully. It told the user up front that the plant isnt in the curated database, then still gave actual general care advice organized by watering, light and humidity instead of just dead-ending with "I dont know." One thing i noticed is that the model even retried the lookup on its own with the scientific name (Senecio rowleyanus) before falling back to general guidance, which i think got triggered by the line in my message suggesting it try the common or scientific name.
 ```
 
 **One thing about the tool call API that surprised you:**
 
 ```
-[your answer here]
+The thing that surprised me most was how much the model's behavior is shaped by the strings i hand back to it, not just by the system prompt. When a tool call has no arguments the API sends the arguments field as the literal string "null" instead of an empty object, which i didnt expect and had to coerce into an empty dict so it wouldnt crash dispatch_tool. I was also surprised that just rewording the not-found message, without touching the prompt or the model at all, visibly changed how structured and useful the fallback answer was, which really drove home that the tool return value is its own control surface and not just data.
 ```
